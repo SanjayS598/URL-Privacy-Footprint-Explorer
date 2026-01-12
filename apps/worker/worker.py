@@ -9,10 +9,24 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import tldextract
+import boto3
 
 # Configuration from environment
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://privacy_user:privacy_pass@localhost:5432/privacy_db")
+S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://localhost:9000")
+S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "minioadmin")
+S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "minioadmin")
+S3_BUCKET = os.getenv("S3_BUCKET", "artifacts")
+S3_PUBLIC_BASE = os.getenv("S3_PUBLIC_BASE", "http://localhost:9000/artifacts")
+
+# MinIO/S3 client
+s3_client = boto3.client(
+    "s3",
+    endpoint_url=S3_ENDPOINT,
+    aws_access_key_id=S3_ACCESS_KEY,
+    aws_secret_access_key=S3_SECRET_KEY
+)
 
 # Load tracker list
 TRACKER_LIST = []
@@ -205,6 +219,19 @@ def run_scan(scan_id: str, strict_config: dict):
                     tracker_domains
                 )
                 
+                # Step 7: Take screenshot and upload to MinIO
+                screenshot_bytes = page.screenshot(full_page=False)
+                screenshot_filename = f"{scan_id}/screenshot.png"
+                
+                # Upload to MinIO
+                s3_client.put_object(
+                    Bucket=S3_BUCKET,
+                    Key=screenshot_filename,
+                    Body=screenshot_bytes,
+                    ContentType="image/png"
+                )
+                screenshot_url = f"{S3_PUBLIC_BASE}/{screenshot_filename}"
+                
                 # Update scan with captured data
                 db.execute(
                     text("""UPDATE scans 
@@ -301,6 +328,21 @@ def run_scan(scan_id: str, strict_config: dict):
                             "resource_breakdown": resource_json
                         }
                     )
+                db.commit()
+                
+                # Insert screenshot artifact
+                db.execute(
+                    text("""INSERT INTO artifacts 
+                            (id, scan_id, kind, uri, created_at)
+                            VALUES (:id, :scan_id, :kind, :uri, :created_at)"""),
+                    {
+                        "id": str(uuid.uuid4()),
+                        "scan_id": scan_id,
+                        "kind": "screenshot",
+                        "uri": screenshot_url,
+                        "created_at": datetime.utcnow()
+                    }
+                )
                 db.commit()
                 
             except PlaywrightTimeoutError as e:
