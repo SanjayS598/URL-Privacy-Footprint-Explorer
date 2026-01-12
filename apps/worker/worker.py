@@ -132,6 +132,21 @@ def run_scan(scan_id: str, strict_config: dict):
                 cookies = context.cookies()
                 cookies_set = len(cookies)
                 
+                # Step 5: Check localStorage and IndexedDB
+                localstorage_keys = page.evaluate("() => Object.keys(localStorage).length")
+                indexeddb_present = page.evaluate("""() => {
+                    return new Promise((resolve) => {
+                        if (!window.indexedDB) {
+                            resolve(false);
+                            return;
+                        }
+                        const request = indexedDB.databases();
+                        request.then(dbs => resolve(dbs.length > 0))
+                              .catch(() => resolve(false));
+                    });
+                }""")
+                serviceworker_present = page.evaluate("() => 'serviceWorker' in navigator && navigator.serviceWorker.controller !== null")
+                
                 # Calculate totals
                 total_requests = len([r for r in requests_data if "status" in r])
                 total_bytes = sum(domain_stats[d]["bytes"] for d in domain_stats)
@@ -148,6 +163,8 @@ def run_scan(scan_id: str, strict_config: dict):
                                 total_bytes = :total_bytes,
                                 third_party_domains = :third_party_domains,
                                 cookies_set = :cookies_set,
+                                localstorage_keys = :localstorage_keys,
+                                indexeddb_present = :indexeddb_present,
                                 finished_at = :finished_at 
                             WHERE id = :id"""),
                     {
@@ -159,6 +176,8 @@ def run_scan(scan_id: str, strict_config: dict):
                         "total_bytes": total_bytes,
                         "third_party_domains": third_party_count,
                         "cookies_set": cookies_set,
+                        "localstorage_keys": localstorage_keys,
+                        "indexeddb_present": indexeddb_present,
                         "finished_at": datetime.utcnow(),
                         "id": scan_id
                     }
@@ -194,6 +213,20 @@ def run_scan(scan_id: str, strict_config: dict):
                             "is_third_party": is_third_party
                         }
                     )
+                db.commit()
+                
+                # Insert storage summary
+                db.execute(
+                    text("""INSERT INTO storage_summary 
+                            (scan_id, localstorage_keys_count, indexeddb_present, serviceworker_present)
+                            VALUES (:scan_id, :localstorage_keys_count, :indexeddb_present, :serviceworker_present)"""),
+                    {
+                        "scan_id": scan_id,
+                        "localstorage_keys_count": localstorage_keys,
+                        "indexeddb_present": indexeddb_present,
+                        "serviceworker_present": serviceworker_present
+                    }
+                )
                 db.commit()
                 
                 # Insert domain aggregates
