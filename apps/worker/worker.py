@@ -3,6 +3,7 @@ from datetime import datetime
 from celery import Celery
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
 # Configuration from environment
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -28,12 +29,23 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @celery_app.task(name="run_scan")
 def run_scan(scan_id: str, strict_config: dict):
-    # Step 1 implementation: Basic status updates only
-    # Real scanning logic will be added in later steps
+    # Step 2 implementation: Added Playwright browser automation
+    # Launches Chromium, navigates to URL, captures final URL after redirects
     # strict_config will be used in later steps for blocking third-party requests
     
     db = SessionLocal()
     try:
+        # Get the URL from the database
+        result = db.execute(
+            text("SELECT url FROM scans WHERE id = :id"),
+            {"id": scan_id}
+        )
+        row = result.fetchone()
+        if not row:
+            raise ValueError(f"Scan {scan_id} not found")
+        
+        target_url = row[0]
+        
         # Update status to running
         db.execute(
             text("UPDATE scans SET status = :status, started_at = :started_at WHERE id = :id"),
@@ -41,18 +53,50 @@ def run_scan(scan_id: str, strict_config: dict):
         )
         db.commit()
         
-        # Simulate work
-        import time
-        time.sleep(2)
+        # Launch Playwright browser
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = context.new_page()
+            
+            try:
+                # Navigate to URL with 30 second timeout
+                response = page.goto(target_url, wait_until="networkidle", timeout=30000)
+                
+                # Capture final URL after redirects
+                final_url = page.url
+                http_status = response.status if response else None
+                page_title = page.title()
+                
+                # Update scan with captured data
+                db.execute(
+                    text("""UPDATE scans 
+                            SET status = :status, 
+                                final_url = :final_url,
+                                http_status = :http_status,
+                                page_title = :page_title,
+                                finished_at = :finished_at 
+                            WHERE id = :id"""),
+                    {
+                        "status": "completed",
+                        "final_url": final_url,
+                        "http_status": http_status,
+                        "page_title": page_title,
+                        "finished_at": datetime.utcnow(),
+                        "id": scan_id
+                    }
+                )
+                db.commit()
+                
+            except PlaywrightTimeoutError as e:
+                raise Exception(f"Timeout loading page: {str(e)}")
+            finally:
+                browser.close()
         
-        # Update status to completed
-        db.execute(
-            text("UPDATE scans SET status = :status, finished_at = :finished_at WHERE id = :id"),
-            {"status": "completed", "finished_at": datetime.utcnow(), "id": scan_id}
-        )
-        db.commit()
-        
-        return {"scan_id": scan_id, "status": "completed"}
+        return {"scan_id": scan_id, "status": "completed", "final_url": final_url}
         
     except Exception as e:
         db.rollback()
