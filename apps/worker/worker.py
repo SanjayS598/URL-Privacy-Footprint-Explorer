@@ -14,6 +14,13 @@ import tldextract
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://privacy_user:privacy_pass@localhost:5432/privacy_db")
 
+# Load tracker list
+TRACKER_LIST = []
+tracker_file = "/app/tracker_lists/default.json"
+if os.path.exists(tracker_file):
+    with open(tracker_file, "r") as f:
+        TRACKER_LIST = json.load(f)
+
 # Celery app
 celery_app = Celery("privacy_worker", broker=REDIS_URL, backend=REDIS_URL)
 celery_app.conf.update(
@@ -30,6 +37,34 @@ celery_app.conf.update(
 # Database setup
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def calculate_privacy_score(third_party_count, cookies_count, localstorage_keys, indexeddb_present, tracker_domains):
+    # Privacy score: 0-100 (100 = excellent privacy, 0 = poor privacy)
+    # Start with perfect score and deduct points
+    score = 100
+    
+    # Deduct for third-party domains (up to -30 points)
+    if third_party_count > 0:
+        score -= min(30, third_party_count * 3)
+    
+    # Deduct for cookies (up to -25 points)
+    if cookies_count > 0:
+        score -= min(25, cookies_count * 2)
+    
+    # Deduct for localStorage usage (up to -15 points)
+    if localstorage_keys > 0:
+        score -= min(15, localstorage_keys * 3)
+    
+    # Deduct for IndexedDB usage (-10 points)
+    if indexeddb_present:
+        score -= 10
+    
+    # Deduct heavily for known trackers (up to -20 points)
+    if tracker_domains > 0:
+        score -= min(20, tracker_domains * 10)
+    
+    return max(0, score)
 
 
 @celery_app.task(name="run_scan")
@@ -152,6 +187,24 @@ def run_scan(scan_id: str, strict_config: dict):
                 total_bytes = sum(domain_stats[d]["bytes"] for d in domain_stats)
                 third_party_count = len([d for d in domain_stats if domain_stats[d]["is_third_party"]])
                 
+                # Step 6: Check for known trackers
+                tracker_domains = 0
+                for domain in domain_stats:
+                    if domain_stats[domain]["is_third_party"]:
+                        for tracker in TRACKER_LIST:
+                            if domain.endswith(tracker):
+                                tracker_domains += 1
+                                break
+                
+                # Calculate privacy score
+                privacy_score = calculate_privacy_score(
+                    third_party_count, 
+                    cookies_set, 
+                    localstorage_keys, 
+                    indexeddb_present,
+                    tracker_domains
+                )
+                
                 # Update scan with captured data
                 db.execute(
                     text("""UPDATE scans 
@@ -165,6 +218,7 @@ def run_scan(scan_id: str, strict_config: dict):
                                 cookies_set = :cookies_set,
                                 localstorage_keys = :localstorage_keys,
                                 indexeddb_present = :indexeddb_present,
+                                privacy_score = :privacy_score,
                                 finished_at = :finished_at 
                             WHERE id = :id"""),
                     {
@@ -178,6 +232,7 @@ def run_scan(scan_id: str, strict_config: dict):
                         "cookies_set": cookies_set,
                         "localstorage_keys": localstorage_keys,
                         "indexeddb_present": indexeddb_present,
+                        "privacy_score": privacy_score,
                         "finished_at": datetime.utcnow(),
                         "id": scan_id
                     }
