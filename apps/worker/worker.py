@@ -128,6 +128,10 @@ def run_scan(scan_id: str, strict_config: dict):
                 http_status = response.status if response else None
                 page_title = page.title()
                 
+                # Step 4: Extract cookies from browser context
+                cookies = context.cookies()
+                cookies_set = len(cookies)
+                
                 # Calculate totals
                 total_requests = len([r for r in requests_data if "status" in r])
                 total_bytes = sum(domain_stats[d]["bytes"] for d in domain_stats)
@@ -143,6 +147,7 @@ def run_scan(scan_id: str, strict_config: dict):
                                 total_requests = :total_requests,
                                 total_bytes = :total_bytes,
                                 third_party_domains = :third_party_domains,
+                                cookies_set = :cookies_set,
                                 finished_at = :finished_at 
                             WHERE id = :id"""),
                     {
@@ -153,10 +158,42 @@ def run_scan(scan_id: str, strict_config: dict):
                         "total_requests": total_requests,
                         "total_bytes": total_bytes,
                         "third_party_domains": third_party_count,
+                        "cookies_set": cookies_set,
                         "finished_at": datetime.utcnow(),
                         "id": scan_id
                     }
                 )
+                db.commit()
+                
+                # Insert cookies into database
+                for cookie in cookies:
+                    # Parse expiration timestamp
+                    expires_at = None
+                    is_session = True
+                    if "expires" in cookie and cookie["expires"] != -1:
+                        # Playwright returns expires as Unix timestamp
+                        expires_at = datetime.fromtimestamp(cookie["expires"])
+                        is_session = False
+                    
+                    # Determine if third-party cookie
+                    cookie_domain = cookie.get("domain", "").lstrip(".")
+                    is_third_party = not cookie_domain.endswith(base_domain)
+                    
+                    db.execute(
+                        text("""INSERT INTO cookies 
+                                (id, scan_id, name, domain, path, expires_at, is_session, is_third_party)
+                                VALUES (:id, :scan_id, :name, :domain, :path, :expires_at, :is_session, :is_third_party)"""),
+                        {
+                            "id": str(uuid.uuid4()),
+                            "scan_id": scan_id,
+                            "name": cookie.get("name", ""),
+                            "domain": cookie.get("domain", ""),
+                            "path": cookie.get("path", "/"),
+                            "expires_at": expires_at,
+                            "is_session": is_session,
+                            "is_third_party": is_third_party
+                        }
+                    )
                 db.commit()
                 
                 # Insert domain aggregates
