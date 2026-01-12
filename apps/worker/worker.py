@@ -1,9 +1,14 @@
 import os
+import json
+import uuid
 from datetime import datetime
+from collections import defaultdict
+from urllib.parse import urlparse
 from celery import Celery
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
+import tldextract
 
 # Configuration from environment
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -29,15 +34,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @celery_app.task(name="run_scan")
 def run_scan(scan_id: str, strict_config: dict):
-    # Step 2 implementation: Added Playwright browser automation
-    # Launches Chromium, navigates to URL, captures final URL after redirects
+    # Step 3 implementation: Added network request interception
+    # Collects all requests, tracks third-party domains, aggregates by domain
     # strict_config will be used in later steps for blocking third-party requests
     
     db = SessionLocal()
     try:
-        # Get the URL from the database
+        # Get the URL and base domain from the database
         result = db.execute(
-            text("SELECT url FROM scans WHERE id = :id"),
+            text("SELECT url, base_domain FROM scans WHERE id = :id"),
             {"id": scan_id}
         )
         row = result.fetchone()
@@ -45,6 +50,7 @@ def run_scan(scan_id: str, strict_config: dict):
             raise ValueError(f"Scan {scan_id} not found")
         
         target_url = row[0]
+        base_domain = row[1]
         
         # Update status to running
         db.execute(
@@ -52,6 +58,15 @@ def run_scan(scan_id: str, strict_config: dict):
             {"status": "running", "started_at": datetime.utcnow(), "id": scan_id}
         )
         db.commit()
+        
+        # Network tracking data structures
+        requests_data = []
+        domain_stats = defaultdict(lambda: {
+            "request_count": 0,
+            "bytes": 0,
+            "is_third_party": False,
+            "resource_breakdown": defaultdict(int)
+        })
         
         # Launch Playwright browser
         with sync_playwright() as p:
@@ -62,6 +77,48 @@ def run_scan(scan_id: str, strict_config: dict):
             )
             page = context.new_page()
             
+            # Set up network request/response listeners
+            def handle_request(request):
+                requests_data.append({
+                    "url": request.url,
+                    "method": request.method,
+                    "resource_type": request.resource_type,
+                    "timestamp": datetime.utcnow()
+                })
+            
+            def handle_response(response):
+                # Find the matching request data
+                for req in requests_data:
+                    if req["url"] == response.url and "status" not in req:
+                        req["status"] = response.status
+                        req["size"] = 0
+                        
+                        # Try to get response size from headers
+                        headers = response.headers
+                        if "content-length" in headers:
+                            try:
+                                req["size"] = int(headers["content-length"])
+                            except (ValueError, TypeError):
+                                pass
+                        
+                        # Extract domain using tldextract
+                        parsed = urlparse(response.url)
+                        extracted = tldextract.extract(parsed.netloc)
+                        domain = f"{extracted.domain}.{extracted.suffix}" if extracted.suffix else extracted.domain
+                        
+                        # Determine if third-party
+                        is_third_party = domain != base_domain
+                        
+                        # Aggregate by domain
+                        domain_stats[domain]["request_count"] += 1
+                        domain_stats[domain]["bytes"] += req["size"]
+                        domain_stats[domain]["is_third_party"] = is_third_party
+                        domain_stats[domain]["resource_breakdown"][req["resource_type"]] += 1
+                        break
+            
+            page.on("request", handle_request)
+            page.on("response", handle_response)
+            
             try:
                 # Navigate to URL with 30 second timeout
                 response = page.goto(target_url, wait_until="networkidle", timeout=30000)
@@ -71,6 +128,11 @@ def run_scan(scan_id: str, strict_config: dict):
                 http_status = response.status if response else None
                 page_title = page.title()
                 
+                # Calculate totals
+                total_requests = len([r for r in requests_data if "status" in r])
+                total_bytes = sum(domain_stats[d]["bytes"] for d in domain_stats)
+                third_party_count = len([d for d in domain_stats if domain_stats[d]["is_third_party"]])
+                
                 # Update scan with captured data
                 db.execute(
                     text("""UPDATE scans 
@@ -78,6 +140,9 @@ def run_scan(scan_id: str, strict_config: dict):
                                 final_url = :final_url,
                                 http_status = :http_status,
                                 page_title = :page_title,
+                                total_requests = :total_requests,
+                                total_bytes = :total_bytes,
+                                third_party_domains = :third_party_domains,
                                 finished_at = :finished_at 
                             WHERE id = :id"""),
                     {
@@ -85,10 +150,32 @@ def run_scan(scan_id: str, strict_config: dict):
                         "final_url": final_url,
                         "http_status": http_status,
                         "page_title": page_title,
+                        "total_requests": total_requests,
+                        "total_bytes": total_bytes,
+                        "third_party_domains": third_party_count,
                         "finished_at": datetime.utcnow(),
                         "id": scan_id
                     }
                 )
+                db.commit()
+                
+                # Insert domain aggregates
+                for domain, stats in domain_stats.items():
+                    resource_json = json.dumps(dict(stats["resource_breakdown"]))
+                    db.execute(
+                        text("""INSERT INTO domain_aggregates 
+                                (id, scan_id, domain, is_third_party, request_count, bytes, resource_breakdown)
+                                VALUES (:id, :scan_id, :domain, :is_third_party, :request_count, :bytes, CAST(:resource_breakdown AS jsonb))"""),
+                        {
+                            "id": str(uuid.uuid4()),
+                            "scan_id": scan_id,
+                            "domain": domain,
+                            "is_third_party": stats["is_third_party"],
+                            "request_count": stats["request_count"],
+                            "bytes": stats["bytes"],
+                            "resource_breakdown": resource_json
+                        }
+                    )
                 db.commit()
                 
             except PlaywrightTimeoutError as e:
@@ -96,7 +183,7 @@ def run_scan(scan_id: str, strict_config: dict):
             finally:
                 browser.close()
         
-        return {"scan_id": scan_id, "status": "completed", "final_url": final_url}
+        return {"scan_id": scan_id, "status": "completed", "total_requests": total_requests}
         
     except Exception as e:
         db.rollback()
