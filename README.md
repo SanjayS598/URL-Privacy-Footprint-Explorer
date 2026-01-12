@@ -38,24 +38,24 @@ A full-stack web application that analyzes websites for privacy concerns by scan
 
 Before you start, you need to install:
 
-1. **Docker Desktop for Mac**
-   - Download from: https://www.docker.com/products/docker-desktop/
+1. **Docker**
+   - **Windows**: Download Docker Desktop from https://www.docker.com/products/docker-desktop/ (requires WSL 2)
+   - **macOS**: Download Docker Desktop from https://www.docker.com/products/docker-desktop/
+   - **Linux**: Install Docker Engine via your package manager
    - Install and start the application
    - Verify: `docker --version` and `docker compose version`
 
 2. **Node.js (LTS version 20+)**
-   - Download from: https://nodejs.org/
-   - Or install via Homebrew:
-     ```bash
-     # Install Homebrew if you don't have it
-     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-     
-     # Install Node.js
-     brew install node
-     ```
+   - **Windows**: Download installer from https://nodejs.org/ or use `winget install OpenJS.NodeJS.LTS`
+   - **macOS**: Download from https://nodejs.org/ or use Homebrew: `brew install node`
+   - **Linux**: Use your package manager: `sudo apt install nodejs npm` (Ubuntu/Debian)
    - Verify: `node --version` and `npm --version`
 
-3. **Python 3.11+** (already installed)
+3. **Python 3.11+**
+   - **Windows**: Download from https://www.python.org/ or use `winget install Python.Python.3.11`
+   - **macOS**: Usually pre-installed, or use Homebrew: `brew install python@3.11`
+   - **Linux**: Use your package manager: `sudo apt install python3.11 python3.11-venv`
+   - Verify: `python --version` or `python3 --version`
 
 ---
 
@@ -63,9 +63,43 @@ Before you start, you need to install:
 
 ### 1. Set Up Python Environment
 
+**On Windows (PowerShell):**
+```powershell
+# Navigate to project directory
+cd path\to\URL-Privacy-Footprint-Explorer
+
+# Create virtual environment (if not exists)
+python -m venv venv
+
+# Activate the virtual environment
+.\venv\Scripts\Activate.ps1
+
+# Install API dependencies
+pip install -r apps\api\requirements.txt
+```
+
+**On Windows (Command Prompt):**
+```cmd
+# Navigate to project directory
+cd path\to\URL-Privacy-Footprint-Explorer
+
+# Create virtual environment (if not exists)
+python -m venv venv
+
+# Activate the virtual environment
+venv\Scripts\activate.bat
+
+# Install API dependencies
+pip install -r apps\api\requirements.txt
+```
+
+**On macOS/Linux:**
 ```bash
 # Navigate to project directory
-cd /Users/sanjays/Desktop/Projects/URL-Privacy-Footprint-Explorer
+cd /path/to/URL-Privacy-Footprint-Explorer
+
+# Create virtual environment (if not exists)
+python3 -m venv venv
 
 # Activate the virtual environment
 source venv/bin/activate
@@ -87,10 +121,19 @@ python -c "import main; print('[OK] API code is valid')"
 
 Once Docker is installed:
 
+**On Windows:**
+```powershell
+cd infra
+docker compose up -d
+```
+
+**On macOS/Linux:**
 ```bash
 cd infra
 docker compose up -d
 ```
+
+**Note for Windows users**: Make sure Docker Desktop is running and WSL 2 is enabled.
 
 This will start:
 - **Postgres** (port 5432) - Database
@@ -106,8 +149,13 @@ This will start:
 # Check all containers are running
 docker compose ps
 
-# Test API health endpoint
+# Test API health endpoint (macOS/Linux)
 curl http://localhost:8000/health
+
+# Test API health endpoint (Windows PowerShell)
+Invoke-WebRequest -Uri http://localhost:8000/health
+
+# Or use browser: http://localhost:8000/health
 
 # Expected response:
 # {"status":"healthy","service":"privacy-api"}
@@ -241,6 +289,21 @@ curl http://localhost:8000/api/scans
 
 ### Running API in Development Mode
 
+**On Windows (PowerShell):**
+```powershell
+cd apps\api
+..\..\venv\Scripts\Activate.ps1
+
+# Start just the database services
+cd ..\..\infra
+docker compose up -d postgres redis minio minio-init
+
+# Run API locally (with hot reload)
+cd ..\apps\api
+uvicorn main:app --reload --port 8000
+```
+
+**On macOS/Linux:**
 ```bash
 cd apps/api
 source ../../venv/bin/activate
@@ -256,6 +319,21 @@ uvicorn main:app --reload --port 8000
 
 ### Database Migrations
 
+**On Windows:**
+```powershell
+cd apps\api
+
+# Create a new migration (auto-generate from models)
+alembic revision --autogenerate -m "description"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback last migration
+alembic downgrade -1
+```
+
+**On macOS/Linux:**
 ```bash
 cd apps/api
 
@@ -335,9 +413,11 @@ score = max(0, min(100, score))
 ## Troubleshooting
 
 ### "Connection refused" errors
-- Make sure Docker is running
+- Make sure Docker Desktop is running
 - Check services: `docker compose ps`
-- Verify ports aren't in use: `lsof -i :5432,6379,8000,9000`
+- Verify ports aren't in use:
+  - **Windows**: `netstat -ano | findstr "5432 6379 8000 9000"`
+  - **macOS/Linux**: `lsof -i :5432,6379,8000,9000`
 
 ### Database migrations fail
 ```bash
@@ -350,8 +430,14 @@ alembic upgrade head
 
 ### API won't start
 - Check logs: `docker compose logs api`
-- Verify Python dependencies: `pip install -r apps/api/requirements.txt`
+- Verify Python dependencies: `pip install -r apps/api/requirements.txt` (or `apps\api\requirements.txt` on Windows)
 - Test imports: `python -c "import main"`
+
+### Windows-specific issues
+- **WSL 2 not enabled**: Docker Desktop requires WSL 2. Enable it via PowerShell (admin): `wsl --install`
+- **Line ending errors**: Git may convert line endings. Configure: `git config --global core.autocrlf input`
+- **Permission errors**: Run PowerShell or Command Prompt as Administrator
+- **Path issues**: Use backslashes (`\`) in Windows paths or forward slashes (`/`) in WSL/Git Bash
 
 ---
 
