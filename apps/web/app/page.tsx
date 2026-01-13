@@ -83,6 +83,15 @@ export default function Home() {
             <span>Privacy score</span>
           </div>
         </div>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => router.push('/scans')}
+            className="text-blue-600 hover:text-blue-800 text-sm"
+          >
+            View all scans →
+          </button>
+        </div>
       </div>
     </main>
   )
