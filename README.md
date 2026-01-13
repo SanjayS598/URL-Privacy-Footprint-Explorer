@@ -2,35 +2,53 @@
 
 A full-stack web application that analyzes websites for privacy concerns by scanning URLs and tracking third-party requests, cookies, and browser storage usage.
 
-## Project Status: Phase 1 Complete - Backend Skeleton Ready
+## Project Status: Core Features Complete
 
 ### What's Implemented
 
 **Infrastructure:**
 - Docker Compose configuration (Postgres, Redis, MinIO, API, Worker, Web)
 - Complete project directory structure
-- Tracker blocklist with common advertising/analytics domains
+- Tracker blocklist with 500+ advertising/analytics domains
 
 **Backend API (FastAPI):**
 - Database models for all entities (scans, domains, cookies, storage, artifacts)
-- Alembic migrations setup with initial schema
-- All REST API endpoints defined:
+- Alembic migrations with complete schema
+- All REST API endpoints:
   - `POST /api/scans` - Create new scan jobs
   - `GET /api/scans/{id}` - Get scan status
-  - `GET /api/scans/{id}/report` - Get full report
+  - `GET /api/scans/{id}/report` - Get full report with domain aggregates, cookies, artifacts
   - `GET /api/scans/{id}/graph` - Get graph visualization data
   - `POST /api/compare` - Compare two scans
   - `GET /api/scans` - List recent scans
   - `GET /health` - Health check
 - Pydantic schemas for request/response validation
-- Celery task definitions (stub for worker)
 - SSRF protection in URL validation
 
-### What's Next (Phase 2)
+**Worker (Celery + Playwright):**
+- Headless Chromium browser automation
+- Network request interception and domain tracking
+- Third-party detection using eTLD+1 extraction
+- Cookie collection (session/persistent, first/third-party)
+- Browser storage analysis (localStorage, IndexedDB, service workers)
+- Privacy score calculation (0-100 weighted algorithm)
+- Screenshot capture and S3 artifact upload
+- Tracker detection against blocklist
 
-1. **Worker Implementation** - Celery worker with Playwright scanner
-2. **Frontend** - Next.js app with React Flow graphs
-3. **End-to-end testing** - Verify complete workflow
+**Frontend (Next.js + React + Tailwind):**
+- URL submission form with validation
+- Real-time scan status polling
+- Privacy score visualization with color coding
+- Domain breakdown table with first/third-party badges
+- Cookie explorer with session/persistent indicators
+- Screenshot preview
+- Responsive design with Tailwind CSS
+
+### What's Next
+
+1. **Graph Visualization** - React Flow network graph showing domain relationships
+2. **Compare Feature** - Side-by-side comparison of two scans
+3. **Advanced Filters** - Filter cookies, domains, and requests by type
 
 ---
 
@@ -140,8 +158,8 @@ This will start:
 - **Redis** (port 6379) - Message broker for Celery
 - **MinIO** (port 9000, console 9001) - S3-compatible object storage
 - **API** (port 8000) - FastAPI backend
-- **Worker** (not yet implemented)
-- **Web** (not yet implemented)
+- **Worker** - Celery worker with Playwright browser automation
+- **Web** (port 3000) - Next.js frontend
 
 ### 4. Verify Services
 
@@ -163,6 +181,7 @@ Invoke-WebRequest -Uri http://localhost:8000/health
 
 ### 5. Access Services
 
+- **Web Interface**: http://localhost:3000 (scan submission and results)
 - **API Documentation**: http://localhost:8000/docs (Swagger UI)
 - **MinIO Console**: http://localhost:9001 (login: minioadmin/minioadmin)
 
@@ -184,11 +203,19 @@ URL-Privacy-Footprint-Explorer/
 │   │   ├── requirements.txt   # Python dependencies
 │   │   └── Dockerfile
 │   │
-│   ├── worker/                # Celery worker (Phase 2)
-│   │   └── (to be implemented)
+│   ├── worker/                # Celery worker with Playwright
+│   │   ├── worker.py          # Scan implementation
+│   │   ├── requirements.txt   # Python dependencies
+│   │   └── Dockerfile
 │   │
-│   └── web/                   # Next.js frontend (Phase 2)
-│       └── (to be implemented)
+│   └── web/                   # Next.js frontend
+│       ├── app/               # App router pages
+│       │   ├── page.tsx       # Home (scan submission)
+│       │   ├── layout.tsx     # Root layout
+│       │   └── scan/[id]/     # Scan results page
+│       ├── package.json
+│       ├── tailwind.config.js
+│       └── Dockerfile
 │
 ├── infra/
 │   ├── docker-compose.yml     # Service orchestration
@@ -263,12 +290,35 @@ POST /api/compare
 
 ---
 
+## Using the Web Interface
+
+### Submit a Scan
+
+1. Open http://localhost:3000 in your browser
+2. Enter a URL to scan (e.g., https://example.com)
+3. Click "Scan URL"
+4. You'll be redirected to the results page where you can see:
+   - Real-time scan progress (queued → running → completed)
+   - Privacy score (0-100, color-coded)
+   - Total requests, third-party domains, cookies, storage usage
+   - Domain breakdown table with first/third-party badges
+   - Complete cookie list with session/persistent indicators
+   - Page screenshot
+
+### Privacy Score Interpretation
+
+- **80-100 (Green)**: Excellent privacy - minimal tracking
+- **50-79 (Yellow)**: Moderate concerns - some third-party trackers
+- **0-49 (Red)**: Poor privacy - extensive tracking detected
+
+---
+
 ## Testing the Current Implementation
 
-Even without the worker, you can test the API:
+You can test via the web interface at http://localhost:3000 or use the API directly:
 
 ```bash
-# Create a scan (will be queued but not processed yet)
+# Create a scan
 curl -X POST http://localhost:8000/api/scans \
   -H "Content-Type: application/json" \
   -d '{
@@ -276,8 +326,11 @@ curl -X POST http://localhost:8000/api/scans \
     "profiles": ["baseline"]
   }'
 
-# Get scan status (will show "queued")
+# Get scan status
 curl http://localhost:8000/api/scans/{scan_id}
+
+# Get full report with all data
+curl http://localhost:8000/api/scans/{scan_id}/report
 
 # List all scans
 curl http://localhost:8000/api/scans

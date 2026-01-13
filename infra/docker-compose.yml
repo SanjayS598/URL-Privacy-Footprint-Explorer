@@ -110,22 +110,22 @@ services:
       - ../apps/worker:/app
       - ../infra/tracker_lists:/app/tracker_lists
 
-  # web:
-  #   build:
-  #     context: ../apps/web
-  #     dockerfile: Dockerfile
-  #   container_name: privacy-web
-  #   environment:
-  #     NEXT_PUBLIC_API_URL: http://localhost:8000
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - api
-  #   volumes:
-  #     - ../apps/web:/app
-  #     - /app/node_modules
-  #     - /app/.next
-  #   command: npm run dev
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    container_name: privacy-web
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      - ../apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
 
 volumes:
   postgres_data:
