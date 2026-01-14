@@ -59,6 +59,11 @@ export default function ScanPage() {
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  
+  // Filter states
+  const [domainFilter, setDomainFilter] = useState<'all' | 'first-party' | 'third-party'>('all')
+  const [cookieFilter, setCookieFilter] = useState<'all' | 'session' | 'persistent' | 'third-party'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   useEffect(() => {
     if (!scanId) return
@@ -115,6 +120,24 @@ export default function ScanPage() {
 
   const { scan, domain_aggregates, cookies, artifacts } = report
   const screenshot = artifacts.find(a => a.kind === 'screenshot')
+
+  // Filter domains
+  const filteredDomains = domain_aggregates.filter(domain => {
+    if (domainFilter === 'first-party' && domain.is_third_party) return false
+    if (domainFilter === 'third-party' && !domain.is_third_party) return false
+    if (searchQuery && !domain.domain.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    return true
+  })
+
+  // Filter cookies
+  const filteredCookies = cookies.filter(cookie => {
+    if (cookieFilter === 'session' && !cookie.is_session) return false
+    if (cookieFilter === 'persistent' && cookie.is_session) return false
+    if (cookieFilter === 'third-party' && !cookie.is_third_party) return false
+    if (searchQuery && !cookie.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
+        !cookie.domain.toLowerCase().includes(searchQuery.toLowerCase())) return false
+    return true
+  })
 
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600'
@@ -215,10 +238,71 @@ export default function ScanPage() {
           </div>
         )}
 
+        {/* Filters */}
+        <div className="bg-white p-6 rounded-lg shadow mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Filters</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search domains or cookies..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Domains</label>
+              <select
+                value={domainFilter}
+                onChange={(e) => setDomainFilter(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All ({domain_aggregates.length})</option>
+                <option value="first-party">First-party ({domain_aggregates.filter(d => !d.is_third_party).length})</option>
+                <option value="third-party">Third-party ({domain_aggregates.filter(d => d.is_third_party).length})</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Cookies</label>
+              <select
+                value={cookieFilter}
+                onChange={(e) => setCookieFilter(e.target.value as any)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">All ({cookies.length})</option>
+                <option value="session">Session ({cookies.filter(c => c.is_session).length})</option>
+                <option value="persistent">Persistent ({cookies.filter(c => !c.is_session).length})</option>
+                <option value="third-party">Third-party ({cookies.filter(c => c.is_third_party).length})</option>
+              </select>
+            </div>
+          </div>
+          {(searchQuery || domainFilter !== 'all' || cookieFilter !== 'all') && (
+            <div className="mt-4 flex items-center gap-2">
+              <span className="text-sm text-gray-600">
+                Showing {filteredDomains.length} domains, {filteredCookies.length} cookies
+              </span>
+              <button
+                onClick={() => {
+                  setSearchQuery('')
+                  setDomainFilter('all')
+                  setCookieFilter('all')
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Domain Breakdown */}
-        {domain_aggregates.length > 0 && (
+        {filteredDomains.length > 0 && (
           <div className="bg-white p-6 rounded-lg shadow mb-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Domain Breakdown</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+              Domain Breakdown ({filteredDomains.length})
+            </h2>
             <div className="overflow-x-auto">
               <table className="min-w-full">
                 <thead>
@@ -230,7 +314,7 @@ export default function ScanPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {domain_aggregates.map((domain, idx) => (
+                  {filteredDomains.map((domain, idx) => (
                     <tr key={idx} className="border-b last:border-0">
                       <td className="py-2 px-4 text-sm">{domain.domain}</td>
                       <td className="py-2 px-4">
@@ -251,11 +335,13 @@ export default function ScanPage() {
         )}
 
         {/* Cookies */}
-        {cookies.length > 0 && (
+        {filteredCookies.length > 0 && (
           <div className="bg-white p-6 rounded-lg shadow">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Cookies ({cookies.length})</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+              Cookies ({filteredCookies.length})
+            </h2>
             <div className="space-y-2">
-              {cookies.slice(0, 10).map((cookie, idx) => (
+              {filteredCookies.map((cookie, idx) => (
                 <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded">
                   <div>
                     <div className="font-medium text-sm">{cookie.name}</div>
