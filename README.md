@@ -1,7 +1,7 @@
 # URL Privacy Footprint Explorer
 
-[![Tests](https://github.com/YOUR_USERNAME/URL-Privacy-Footprint-Explorer/actions/workflows/test.yml/badge.svg)](https://github.com/YOUR_USERNAME/URL-Privacy-Footprint-Explorer/actions/workflows/test.yml)
-[![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/YOUR_USERNAME/URL-Privacy-Footprint-Explorer)
+[![Tests](https://github.com/SanjayS598/URL-Privacy-Footprint-Explorer/actions/workflows/test.yml/badge.svg)](https://github.com/SanjayS598/URL-Privacy-Footprint-Explorer/actions/workflows/test.yml)
+[![Coverage](https://img.shields.io/badge/coverage-96%25-brightgreen)](https://github.com/SanjayS598/URL-Privacy-Footprint-Explorer)
 
 A comprehensive full-stack web application that analyzes websites for privacy concerns by scanning URLs, tracking third-party requests, detecting fingerprinting techniques, analyzing cookies, and measuring browser storage usage.
 
