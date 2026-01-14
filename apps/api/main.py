@@ -13,7 +13,7 @@ from schemas import (
     ScanCreateRequest, ScanCreateResponse, ScanStatus, ScanReport,
     DomainAggregateResponse, CookieResponse, StorageSummaryResponse,
     ArtifactResponse, GraphResponse, GraphNode, GraphEdge,
-    CompareRequest, CompareDelta, ScanListItem
+    CompareRequest, CompareDelta, ScanListItem, FingerprintingDetectionResponse
 )
 from tasks import celery_app
 
@@ -130,12 +130,21 @@ async def get_scan_report(scan_id: uuid.UUID, db: Session = Depends(get_db)):
         .all()
     )
     
+    # Get fingerprinting detections
+    from models import FingerprintingDetection
+    fingerprinting_detections = (
+        db.query(FingerprintingDetection)
+        .filter(FingerprintingDetection.scan_id == scan_id)
+        .all()
+    )
+    
     return ScanReport(
         scan=ScanStatus.model_validate(scan),
         domain_aggregates=[DomainAggregateResponse.model_validate(d) for d in domain_aggregates],
         cookies=[CookieResponse.model_validate(c) for c in cookies],
         storage_summary=StorageSummaryResponse.model_validate(storage_summary) if storage_summary else None,
-        artifacts=[ArtifactResponse.model_validate(a) for a in artifacts]
+        artifacts=[ArtifactResponse.model_validate(a) for a in artifacts],
+        fingerprinting_detections=[FingerprintingDetectionResponse.model_validate(f) for f in fingerprinting_detections]
     )
 
 

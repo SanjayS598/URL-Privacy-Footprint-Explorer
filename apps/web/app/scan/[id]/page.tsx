@@ -44,11 +44,26 @@ interface Artifact {
   uri: string
 }
 
+interface FingerprintingDetection {
+  id: string
+  technique: string
+  domain: string
+  script_url: string | null
+  evidence: {
+    description: string
+    patterns_found: string[]
+    total_matches: number
+  } | null
+  severity: string
+  created_at: string
+}
+
 interface Report {
   scan: Scan
   domain_aggregates: DomainAggregate[]
   cookies: Cookie[]
   artifacts: Artifact[]
+  fingerprinting_detections: FingerprintingDetection[]
 }
 
 export default function ScanPage() {
@@ -118,7 +133,7 @@ export default function ScanPage() {
     )
   }
 
-  const { scan, domain_aggregates, cookies, artifacts } = report
+  const { scan, domain_aggregates, cookies, artifacts, fingerprinting_detections } = report
   const screenshot = artifacts.find(a => a.kind === 'screenshot')
 
   // Filter domains
@@ -235,6 +250,63 @@ export default function ScanPage() {
           <div className="bg-white p-6 rounded-lg shadow mb-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4">Screenshot</h2>
             <img src={screenshot.uri} alt="Page screenshot" className="w-full rounded-md border" />
+          </div>
+        )}
+
+        {/* Fingerprinting Detection */}
+        {fingerprinting_detections.length > 0 && (
+          <div className="bg-white p-6 rounded-lg shadow mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center">
+              <svg className="w-6 h-6 mr-2 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Browser Fingerprinting Detected ({fingerprinting_detections.length})
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              This website uses browser fingerprinting techniques to track you across the web without cookies.
+            </p>
+            <div className="space-y-3">
+              {fingerprinting_detections.map((detection) => {
+                const getSeverityColor = (severity: string) => {
+                  if (severity === 'high') return 'bg-red-100 text-red-800 border-red-200'
+                  if (severity === 'medium') return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+                  return 'bg-gray-100 text-gray-800 border-gray-200'
+                }
+                
+                return (
+                  <div key={detection.id} className={`p-4 rounded-lg border ${getSeverityColor(detection.severity)}`}>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold capitalize">{detection.technique} Fingerprinting</span>
+                          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            detection.severity === 'high' ? 'bg-red-200 text-red-900' :
+                            detection.severity === 'medium' ? 'bg-yellow-200 text-yellow-900' :
+                            'bg-gray-200 text-gray-900'
+                          }`}>
+                            {detection.severity.toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="text-sm space-y-1">
+                          <div><span className="font-medium">Domain:</span> {detection.domain}</div>
+                          {detection.evidence && (
+                            <>
+                              <div className="text-xs italic">{detection.evidence.description}</div>
+                              {detection.evidence.patterns_found && detection.evidence.patterns_found.length > 0 && (
+                                <div className="text-xs">
+                                  <span className="font-medium">Patterns detected:</span> {detection.evidence.patterns_found.slice(0, 3).join(', ')}
+                                  {detection.evidence.patterns_found.length > 3 && ` (+${detection.evidence.patterns_found.length - 3} more)`}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
         )}
 

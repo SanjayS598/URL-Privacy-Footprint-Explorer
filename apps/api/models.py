@@ -44,6 +44,7 @@ class Scan(Base):
     cookies = relationship("Cookie", back_populates="scan", cascade="all, delete-orphan")
     storage_summary = relationship("StorageSummary", back_populates="scan", uselist=False, cascade="all, delete-orphan")
     artifacts = relationship("Artifact", back_populates="scan", cascade="all, delete-orphan")
+    fingerprinting_detections = relationship("FingerprintingDetection", back_populates="scan", cascade="all, delete-orphan")
 
 
 class DomainAggregate(Base):
@@ -104,3 +105,20 @@ class Artifact(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     
     scan = relationship("Scan", back_populates="artifacts")
+
+
+class FingerprintingDetection(Base):
+    # Records instances of browser fingerprinting techniques detected.
+    __tablename__ = "fingerprinting_detections"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id"), nullable=False)
+    
+    technique = Column(String(50), nullable=False)  # 'canvas'|'webgl'|'audio'|'font'|'device'
+    domain = Column(Text, nullable=False)
+    script_url = Column(Text, nullable=True)
+    evidence = Column(JSON, nullable=True)  # Specific patterns found
+    severity = Column(String(20), nullable=False)  # 'low'|'medium'|'high'
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    scan = relationship("Scan", back_populates="fingerprinting_detections")

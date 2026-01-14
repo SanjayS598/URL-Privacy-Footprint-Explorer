@@ -10,6 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import tldextract
 import boto3
+from fingerprinting import detect_fingerprinting
 
 # Configuration from environment
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -53,7 +54,7 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
-def calculate_privacy_score(third_party_count, cookies_count, localstorage_keys, indexeddb_present, tracker_domains):
+def calculate_privacy_score(third_party_count, cookies_count, localstorage_keys, indexeddb_present, tracker_domains, fingerprinting_count):
     # Privacy score: 0-100 (100 = excellent privacy, 0 = poor privacy)
     # Start with perfect score and deduct points
     score = 100
@@ -77,6 +78,10 @@ def calculate_privacy_score(third_party_count, cookies_count, localstorage_keys,
     # Deduct heavily for known trackers (up to -20 points)
     if tracker_domains > 0:
         score -= min(20, tracker_domains * 10)
+    
+    # Deduct for fingerprinting techniques (up to -25 points)
+    if fingerprinting_count > 0:
+        score -= min(25, fingerprinting_count * 8)
     
     return max(0, score)
 
@@ -168,6 +173,18 @@ def run_scan(scan_id: str, strict_config: dict):
             page.on("request", handle_request)
             page.on("response", handle_response)
             
+            # Collect JavaScript content for fingerprinting analysis
+            script_contents = {}
+            
+            def handle_script_response(response):
+                if response.request.resource_type == "script":
+                    try:
+                        script_contents[response.url] = response.text()
+                    except:
+                        pass
+            
+            page.on("response", handle_script_response)
+            
             try:
                 # Navigate to URL with 30 second timeout
                 response = page.goto(target_url, wait_until="networkidle", timeout=30000)
@@ -210,13 +227,34 @@ def run_scan(scan_id: str, strict_config: dict):
                                 tracker_domains += 1
                                 break
                 
+                # Step 6.5: Detect browser fingerprinting
+                all_fingerprinting_detections = []
+                for script_url, script_content in script_contents.items():
+                    detections = detect_fingerprinting(script_content, script_url)
+                    for detection in detections:
+                        # Extract domain from script URL
+                        parsed = urlparse(script_url)
+                        extracted = tldextract.extract(parsed.netloc)
+                        script_domain = f"{extracted.domain}.{extracted.suffix}" if extracted.suffix else extracted.domain
+                        
+                        all_fingerprinting_detections.append({
+                            'technique': detection['technique'],
+                            'severity': detection['severity'],
+                            'domain': script_domain,
+                            'script_url': script_url,
+                            'evidence': detection['evidence']
+                        })
+                
+                fingerprinting_count = len(all_fingerprinting_detections)
+                
                 # Calculate privacy score
                 privacy_score = calculate_privacy_score(
                     third_party_count, 
                     cookies_set, 
                     localstorage_keys, 
                     indexeddb_present,
-                    tracker_domains
+                    tracker_domains,
+                    fingerprinting_count
                 )
                 
                 # Step 7: Take screenshot and upload to MinIO
@@ -343,6 +381,25 @@ def run_scan(scan_id: str, strict_config: dict):
                         "created_at": datetime.utcnow()
                     }
                 )
+                
+                # Insert fingerprinting detections
+                for detection in all_fingerprinting_detections:
+                    db.execute(
+                        text("""INSERT INTO fingerprinting_detections 
+                                (id, scan_id, technique, domain, script_url, evidence, severity, created_at)
+                                VALUES (:id, :scan_id, :technique, :domain, :script_url, CAST(:evidence AS jsonb), :severity, :created_at)"""),
+                        {
+                            "id": str(uuid.uuid4()),
+                            "scan_id": scan_id,
+                            "technique": detection['technique'],
+                            "domain": detection['domain'],
+                            "script_url": detection['script_url'],
+                            "evidence": json.dumps(detection['evidence']),
+                            "severity": detection['severity'],
+                            "created_at": datetime.utcnow()
+                        }
+                    )
+                
                 db.commit()
                 
             except PlaywrightTimeoutError as e:

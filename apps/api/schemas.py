@@ -123,6 +123,18 @@ class ArtifactResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FingerprintingDetectionResponse(BaseModel):
+    # Fingerprinting detection instance.
+    id: UUID
+    technique: str
+    domain: str
+    script_url: Optional[str]
+    evidence: Optional[Dict[str, Any]]
+    severity: str
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
 
 class ScanReport(BaseModel):
     # Complete scan report.
@@ -131,6 +143,7 @@ class ScanReport(BaseModel):
     cookies: List[CookieResponse]
     storage_summary: Optional[StorageSummaryResponse]
     artifacts: List[ArtifactResponse]
+    fingerprinting_detections: List[FingerprintingDetectionResponse]
 
 
 class GraphNode(BaseModel):
