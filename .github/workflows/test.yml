@@ -1,0 +1,172 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test-api:
+    name: Test API
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: privacy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install API dependencies
+        working-directory: ./apps/api
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio httpx
+
+      - name: Run API tests
+        working-directory: ./apps/api
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/privacy_test
+          REDIS_URL: redis://localhost:6379/0
+          S3_ENDPOINT: http://localhost:9000
+          S3_ACCESS_KEY: minioadmin
+          S3_SECRET_KEY: minioadmin
+          S3_BUCKET: artifacts
+          S3_PUBLIC_BASE: http://localhost:9000/artifacts
+        run: |
+          pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=xml || true
+
+      - name: Upload API coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./apps/api/coverage.xml
+          flags: api
+          name: api-coverage
+
+  test-worker:
+    name: Test Worker
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: privacy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Worker dependencies
+        working-directory: ./apps/worker
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-asyncio
+          playwright install chromium
+
+      - name: Run Worker tests
+        working-directory: ./apps/worker
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/privacy_test
+          REDIS_URL: redis://localhost:6379/0
+          S3_ENDPOINT: http://localhost:9000
+          S3_ACCESS_KEY: minioadmin
+          S3_SECRET_KEY: minioadmin
+          S3_BUCKET: artifacts
+          S3_PUBLIC_BASE: http://localhost:9000/artifacts
+        run: |
+          pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=xml || true
+
+      - name: Upload Worker coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./apps/worker/coverage.xml
+          flags: worker
+          name: worker-coverage
+
+  lint:
+    name: Lint Python Code
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install linting tools
+        run: |
+          pip install flake8 black isort mypy
+
+      - name: Run black
+        run: |
+          black --check apps/api apps/worker || true
+
+      - name: Run isort
+        run: |
+          isort --check-only apps/api apps/worker || true
+
+      - name: Run flake8
+        run: |
+          flake8 apps/api apps/worker --max-line-length=120 --extend-ignore=E203,W503 || true

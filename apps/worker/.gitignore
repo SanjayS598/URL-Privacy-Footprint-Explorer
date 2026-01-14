@@ -1,0 +1,13 @@
+# pytest
+.pytest_cache/
+htmlcov/
+coverage.xml
+.coverage
+*.cover
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
