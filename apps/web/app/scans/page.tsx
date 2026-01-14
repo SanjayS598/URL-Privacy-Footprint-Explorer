@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
-import { getScanIds, addScan, removeScan } from '@/lib/scans'
+import { getScanIds, removeScan } from '@/lib/scans'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -21,8 +21,6 @@ export default function ScansPage() {
   const [scans, setScans] = useState<Scan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [showAddScan, setShowAddScan] = useState(false)
-  const [scanIdInput, setScanIdInput] = useState('')
 
   useEffect(() => {
     const fetchScans = async () => {
@@ -56,49 +54,36 @@ export default function ScansPage() {
 
     fetchScans()
   }, [])
-  const handleAddScan = async () => {
-    if (!scanIdInput.trim()) return
-    
-    try {
-      const response = await axios.get(`${API_URL}/api/scans/${scanIdInput}`)
-      addScan(response.data.id, response.data.url)
-      setScans(prev => [response.data, ...prev])
-      setScanIdInput('')
-      setShowAddScan(false)
-    } catch (err) {
-      setError('Scan not found or invalid ID')
-    }
-  }
 
   const handleDeleteScan = (id: string) => {
     removeScan(id)
     setScans(prev => prev.filter(s => s.id !== id))
   }
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600'
-    if (score >= 50) return 'text-yellow-600'
-    return 'text-red-600'
+    if (score >= 80) return 'from-green-400 to-emerald-500'
+    if (score >= 50) return 'from-yellow-400 to-orange-500'
+    return 'from-red-400 to-pink-500'
   }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
-        return <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">Completed</span>
+        return <span className="px-2 py-1 text-xs bg-green-500/20 text-green-300 border border-green-500/40 rounded-full">Completed</span>
       case 'running':
-        return <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">Running</span>
+        return <span className="px-2 py-1 text-xs bg-blue-500/20 text-blue-300 border border-blue-500/40 rounded-full animate-pulse">Running</span>
       case 'failed':
-        return <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded">Failed</span>
+        return <span className="px-2 py-1 text-xs bg-red-500/20 text-red-300 border border-red-500/40 rounded-full">Failed</span>
       default:
-        return <span className="px-2 py-1 text-xs bg-gray-100 text-gray-800 rounded">{status}</span>
+        return <span className="px-2 py-1 text-xs bg-gray-500/20 text-gray-300 border border-gray-500/40 rounded-full">{status}</span>
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading scans...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-300">Loading scans...</p>
         </div>
       </div>
     )
@@ -106,12 +91,12 @@ export default function ScansPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
+          <p className="text-red-400 mb-4">{error}</p>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
           >
             Back to Home
           </button>
@@ -121,129 +106,108 @@ export default function ScansPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 py-8 px-4">
+      {/* Animated background */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+      </div>
+
+      <div className="max-w-6xl mx-auto relative z-10">
         <div className="mb-6">
           <button
             onClick={() => router.push('/')}
-            className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+            className="text-blue-400 hover:text-blue-300 mb-4 inline-flex items-center transition-all duration-200 hover:translate-x-[-4px]"
           >
             ← Back to Home
           </button>
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-gray-900">Scan History</h1>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowAddScan(!showAddScan)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              >
-                {showAddScan ? 'Cancel' : 'Add Scan ID'}
-              </button>
-              <button
-                onClick={() => router.push('/compare')}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Compare Scans
-              </button>
-            </div>
+            <h1 className="text-3xl font-bold text-white flex items-center gap-2">
+              <span className="text-3xl">📚</span>
+              Scan History
+            </h1>
+            <button
+              onClick={() => router.push('/compare')}
+              className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
+            >
+              Compare Scans
+            </button>
           </div>
         </div>
 
-        {showAddScan && (
-          <div className="bg-white p-4 rounded-lg shadow mb-6">
-            <h3 className="font-semibold text-gray-900 mb-2">Add Existing Scan</h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Enter a scan ID to add it to your history
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={scanIdInput}
-                onChange={(e) => setScanIdInput(e.target.value)}
-                placeholder="Scan ID (UUID)"
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                onClick={handleAddScan}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Add
-              </button>
-            </div>
-          </div>
-        )}
-
         {scans.length === 0 ? (
-          <div className="bg-white p-8 rounded-lg shadow text-center">
-            <p className="text-gray-600 mb-4">No scans found</p>
+          <div className="bg-white/10 backdrop-blur-sm p-8 rounded-xl border border-white/20 shadow-xl text-center">
+            <div className="text-6xl mb-4">🔍</div>
+            <p className="text-gray-300 mb-4 text-lg">No scans found</p>
+            <p className="text-gray-400 text-sm mb-6">Create your first scan to start analyzing website privacy</p>
             <button
               onClick={() => router.push('/')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transform hover:scale-105 transition-all duration-200 shadow-lg"
             >
               Create First Scan
             </button>
           </div>
         ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl border border-white/20 shadow-xl overflow-hidden">
             <table className="min-w-full">
-              <thead className="bg-gray-50">
+              <thead className="bg-white/5">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     URL
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Privacy Score
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Created
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-transparent divide-y divide-white/10">
                 {scans.map((scan) => (
-                  <tr key={scan.id} className="hover:bg-gray-50">
+                  <tr key={scan.id} className="hover:bg-white/5 transition-colors duration-200">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{scan.url}</div>
+                      <div className="text-sm font-medium text-white truncate max-w-md">{scan.url}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(scan.status)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {scan.status === 'completed' ? (
-                        <span className={`text-2xl font-bold ${getScoreColor(scan.privacy_score)}`}>
+                        <span className={`text-2xl font-bold bg-gradient-to-r ${getScoreColor(scan.privacy_score)} text-transparent bg-clip-text`}>
                           {scan.privacy_score}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
                       {new Date(scan.created_at).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <button
                         onClick={() => router.push(`/scan/${scan.id}`)}
-                        className="text-blue-600 hover:text-blue-800 mr-4"
+                        className="text-blue-400 hover:text-blue-300 mr-4 transition-colors duration-200"
                       >
                         View
                       </button>
                       {scan.status === 'completed' && (
                         <button
                           onClick={() => router.push(`/scan/${scan.id}/graph`)}
-                          className="text-green-600 hover:text-green-800 mr-4"
+                          className="text-green-400 hover:text-green-300 mr-4 transition-colors duration-200"
                         >
                           Graph
                         </button>
                       )}
                       <button
                         onClick={() => handleDeleteScan(scan.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="text-red-400 hover:text-red-300 transition-colors duration-200"
                       >
                         Remove
                       </button>
