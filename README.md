@@ -224,6 +224,28 @@ URL-Privacy-Footprint-Explorer/
 - Docker & Docker Compose
 - GitHub Actions CI/CD
 
+## Demo
+
+### Home Page - Scan Submission
+![Home Page](./docs/screenshots/home-page.png)
+*Clean, modern interface to submit URLs for comprehensive privacy analysis*
+
+### Scan Results Dashboard
+![Scan Results](./docs/screenshots/scan-results.png)
+*Real-time scan progress with privacy score, metrics, and color-coded privacy rating*
+
+### Domain Breakdown Analysis
+![Domain Analysis](./docs/screenshots/domain-breakdown.png)
+*Detailed table showing first-party vs third-party domains with request counts and data transfer*
+
+### Cookie Tracking Details
+![Cookie Analysis](./docs/screenshots/cookie-analysis.png)
+*Complete cookie inventory with session/persistent classification and third-party indicators*
+
+### Browser Fingerprinting Detection
+![Fingerprinting Detection](./docs/screenshots/browser-fingerprinting.png)
+*Advanced detection of canvas, WebGL, audio, and font fingerprinting techniques*
+
 ## Contributing
 
 1. Fork the repository
