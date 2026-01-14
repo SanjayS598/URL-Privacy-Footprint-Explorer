@@ -170,22 +170,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
-            <div className="p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 hover:border-blue-500/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="text-3xl font-bold text-white mb-1">100+</div>
-              <div className="text-sm text-gray-400">Scans Completed</div>
-            </div>
-            <div className="p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 hover:border-purple-500/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="text-3xl font-bold text-white mb-1">5</div>
-              <div className="text-sm text-gray-400">Detection Types</div>
-            </div>
-            <div className="p-4 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 hover:border-pink-500/50 transition-all duration-300 hover:transform hover:scale-105">
-              <div className="text-3xl font-bold text-white mb-1">Fast</div>
-              <div className="text-sm text-gray-400">15s Average</div>
-            </div>
-          </div>
         </div>
 
         {/* Features Grid */}

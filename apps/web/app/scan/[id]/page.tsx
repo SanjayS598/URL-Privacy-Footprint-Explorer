@@ -219,7 +219,7 @@ export default function ScanPage() {
               <p className="text-red-300 text-sm mt-2">{scan.error_message}</p>
             )}
           </div>
-        )}}
+        )}
 
         {/* Privacy Score Card */}
         <div className="mb-6 p-6 bg-gradient-to-r from-white/10 to-white/5 backdrop-blur-md rounded-xl border border-white/20 hover:border-white/30 transition-all duration-300 shadow-xl">

@@ -156,7 +156,7 @@ export default function ComparePage() {
                 onChange={(e) => setScanAId(e.target.value)}
                 className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               >
-                <option value="" className="bg-slate-800" className="bg-slate-800">Select a scan...</option>
+                <option value="" className="bg-slate-800">Select a scan...</option>
                 {scans.map((scan) => (
                   <option key={scan.id} value={scan.id} className="bg-slate-800">
                     {scan.url} - Score: {scan.privacy_score}
@@ -174,7 +174,7 @@ export default function ComparePage() {
                 onChange={(e) => setScanBId(e.target.value)}
                 className="w-full px-3 py-2 bg-white/5 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               >
-                <option value="" className="bg-slate-800" className="bg-slate-800">Select a scan...</option>
+                <option value="" className="bg-slate-800">Select a scan...</option>
                 {scans.map((scan) => (
                   <option key={scan.id} value={scan.id} className="bg-slate-800">
                     {scan.url} - Score: {scan.privacy_score}

@@ -46,8 +46,8 @@ export default function GraphPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   
-  const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
 
   useEffect(() => {
     if (!scanId) return
