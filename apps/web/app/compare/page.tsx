@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { getScanIds } from '@/lib/scans'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -45,8 +46,23 @@ export default function ComparePage() {
   useEffect(() => {
     const fetchScans = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/scans`)
-        const completedScans = response.data.filter((s: Scan) => s.status === 'completed')
+        const userScanIds = getScanIds()
+        
+        if (userScanIds.length === 0) {
+          setScans([])
+          return
+        }
+        
+        // Fetch each user's completed scan
+        const scanPromises = userScanIds.map(id => 
+          axios.get(`${API_URL}/api/scans/${id}`).catch(() => null)
+        )
+        
+        const results = await Promise.all(scanPromises)
+        const completedScans = results
+          .filter(r => r !== null && r!.data.status === 'completed')
+          .map(r => r!.data)
+        
         setScans(completedScans)
       } catch (err: any) {
         setError('Failed to load scans')

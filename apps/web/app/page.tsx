@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { addScan } from '@/lib/scans'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -24,6 +25,10 @@ export default function Home() {
       })
       
       const scanId = response.data.scan_ids[0]
+      
+      // Save to localStorage
+      addScan(scanId, url)
+      
       router.push(`/scan/${scanId}`)
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to create scan')

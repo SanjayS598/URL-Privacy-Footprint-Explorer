@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
+import { getScanIds, addScan, removeScan } from '@/lib/scans'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -20,22 +21,59 @@ export default function ScansPage() {
   const [scans, setScans] = useState<Scan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showAddScan, setShowAddScan] = useState(false)
+  const [scanIdInput, setScanIdInput] = useState('')
 
   useEffect(() => {
     const fetchScans = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/scans`)
-        setScans(response.data)
+        const userScanIds = getScanIds()
+        
+        if (userScanIds.length === 0) {
+          setScans([])
+          setLoading(false)
+          return
+        }
+        
+        // Fetch each user's scan
+        const scanPromises = userScanIds.map(id => 
+          axios.get(`${API_URL}/api/scans/${id}`).catch(() => null)
+        )
+        
+        const results = await Promise.all(scanPromises)
+        const validScans = results
+          .filter(r => r !== null)
+          .map(r => r!.data)
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        
+        setScans(validScans)
         setLoading(false)
       } catch (err: any) {
-        setError(err.response?.data?.detail || 'Failed to fetch scans')
+        setError('Failed to fetch scans')
         setLoading(false)
       }
     }
 
     fetchScans()
   }, [])
+  const handleAddScan = async () => {
+    if (!scanIdInput.trim()) return
+    
+    try {
+      const response = await axios.get(`${API_URL}/api/scans/${scanIdInput}`)
+      addScan(response.data.id, response.data.url)
+      setScans(prev => [response.data, ...prev])
+      setScanIdInput('')
+      setShowAddScan(false)
+    } catch (err) {
+      setError('Scan not found or invalid ID')
+    }
+  }
 
+  const handleDeleteScan = (id: string) => {
+    removeScan(id)
+    setScans(prev => prev.filter(s => s.id !== id))
+  }
   const getScoreColor = (score: number) => {
     if (score >= 80) return 'text-green-600'
     if (score >= 50) return 'text-yellow-600'
@@ -94,14 +132,46 @@ export default function ScansPage() {
           </button>
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-gray-900">Scan History</h1>
-            <button
-              onClick={() => router.push('/compare')}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Compare Scans
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowAddScan(!showAddScan)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                {showAddScan ? 'Cancel' : 'Add Scan ID'}
+              </button>
+              <button
+                onClick={() => router.push('/compare')}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Compare Scans
+              </button>
+            </div>
           </div>
         </div>
+
+        {showAddScan && (
+          <div className="bg-white p-4 rounded-lg shadow mb-6">
+            <h3 className="font-semibold text-gray-900 mb-2">Add Existing Scan</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Enter a scan ID to add it to your history
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={scanIdInput}
+                onChange={(e) => setScanIdInput(e.target.value)}
+                placeholder="Scan ID (UUID)"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={handleAddScan}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        )}
 
         {scans.length === 0 ? (
           <div className="bg-white p-8 rounded-lg shadow text-center">
@@ -166,11 +236,17 @@ export default function ScansPage() {
                       {scan.status === 'completed' && (
                         <button
                           onClick={() => router.push(`/scan/${scan.id}/graph`)}
-                          className="text-green-600 hover:text-green-800"
+                          className="text-green-600 hover:text-green-800 mr-4"
                         >
                           Graph
                         </button>
                       )}
+                      <button
+                        onClick={() => handleDeleteScan(scan.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        Remove
+                      </button>
                     </td>
                   </tr>
                 ))}
