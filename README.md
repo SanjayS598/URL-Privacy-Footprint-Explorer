@@ -31,6 +31,7 @@ A comprehensive full-stack web application that analyzes websites for privacy co
 - PostgreSQL database
 - Redis for Celery task queue
 - MinIO (S3-compatible) for artifact storage
+- Rate limiting (SlowAPI) - 10-60 req/min per IP
 
 **Worker:**
 - Celery for background job processing
@@ -145,6 +146,17 @@ Content-Type: application/json
 ```
 
 **Interactive API Docs:** http://localhost:8000/docs
+
+### Rate Limits
+
+API endpoints are rate-limited per IP address to prevent abuse:
+- **POST /api/scans**: 10 requests/minute (scan creation)
+- **GET /api/scans/{scan_id}**: 60 requests/minute (status polling)
+- **GET /api/scans/{scan_id}/report**: 30 requests/minute
+- **GET /api/scans/{scan_id}/graph**: 30 requests/minute
+- **POST /api/compare**: 20 requests/minute
+
+See [apps/api/RATE_LIMITS.md](apps/api/RATE_LIMITS.md) for complete documentation.
 
 ## Testing
 
