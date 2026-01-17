@@ -55,13 +55,23 @@ export default function ComparePage() {
         
         // Fetch each user's completed scan
         const scanPromises = userScanIds.map(id => 
-          axios.get(`${API_URL}/api/scans/${id}`).catch(() => null)
+          axios.get(`${API_URL}/api/scans/${id}`)
+            .then(r => ({ id, data: r.data, found: true }))
+            .catch(err => ({ id, data: null, found: false }))
         )
         
         const results = await Promise.all(scanPromises)
+        
+        // Remove invalid scan IDs from localStorage
+        results.forEach(result => {
+          if (!result.found) {
+            removeScan(result.id)
+          }
+        })
+        
         const completedScans = results
-          .filter(r => r !== null && r!.data.status === 'completed')
-          .map(r => r!.data)
+          .filter(r => r.found && r.data && r.data.status === 'completed')
+          .map(r => r.data!)
         
         setScans(completedScans)
       } catch (err: any) {

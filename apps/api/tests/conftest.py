@@ -1,7 +1,11 @@
 import pytest
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from fastapi.testclient import TestClient
+
+# Set testing environment variable before importing main
+os.environ["TESTING"] = "true"
 
 from database import Base, get_db
 from main import app

@@ -124,7 +124,10 @@ def run_scan(scan_id: str, strict_config: dict):
         
         # Launch Playwright browser
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(
+                headless=True,
+                args=['--disable-blink-features=AutomationControlled', '--disable-dev-shm-usage']
+            )
             context = browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -186,8 +189,12 @@ def run_scan(scan_id: str, strict_config: dict):
             page.on("response", handle_script_response)
             
             try:
-                # Navigate to URL with 30 second timeout
-                response = page.goto(target_url, wait_until="networkidle", timeout=30000)
+                # Navigate to URL - use 'load' instead of 'networkidle' for faster results
+                # 'load' fires when initial page load completes, much faster than waiting for all network activity
+                response = page.goto(target_url, wait_until="load", timeout=10000)
+                
+                # Wait a brief period to capture most third-party requests (reduced for speed)
+                page.wait_for_timeout(500)  # 500ms grace period
                 
                 # Capture final URL after redirects
                 final_url = page.url

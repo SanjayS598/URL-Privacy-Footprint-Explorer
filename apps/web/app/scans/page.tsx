@@ -35,13 +35,23 @@ export default function ScansPage() {
         
         // Fetch each user's scan
         const scanPromises = userScanIds.map(id => 
-          axios.get(`${API_URL}/api/scans/${id}`).catch(() => null)
+          axios.get(`${API_URL}/api/scans/${id}`)
+            .then(r => ({ id, data: r.data, found: true }))
+            .catch(err => ({ id, data: null, found: false }))
         )
         
         const results = await Promise.all(scanPromises)
+        
+        // Remove invalid scan IDs from localStorage
+        results.forEach(result => {
+          if (!result.found) {
+            removeScan(result.id)
+          }
+        })
+        
         const validScans = results
-          .filter(r => r !== null)
-          .map(r => r!.data)
+          .filter(r => r.found && r.data)
+          .map(r => r.data!)
           .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         
         setScans(validScans)

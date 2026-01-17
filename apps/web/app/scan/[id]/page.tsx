@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import axios from 'axios'
+import { removeScan } from '@/lib/scans'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
@@ -83,51 +84,114 @@ export default function ScanPage() {
   useEffect(() => {
     if (!scanId) return
 
+    console.log('Fetching scan:', scanId, 'from API:', API_URL)
+    let consecutiveErrors = 0
+    let intervalId: NodeJS.Timeout | null = null
+
     const fetchReport = async () => {
       try {
         const response = await axios.get(`${API_URL}/api/scans/${scanId}/report`)
-        setReport(response.data)
+        const data = response.data
+        setReport(data)
         setLoading(false)
+        consecutiveErrors = 0
+        
+        // If scan is complete, stop polling immediately
+        if (data.scan.status === 'completed' || data.scan.status === 'failed') {
+          if (intervalId) clearInterval(intervalId)
+          console.log('Scan complete, stopped polling')
+        }
       } catch (err: any) {
-        setError(err.response?.data?.detail || 'Failed to fetch scan')
+        console.error('Failed to fetch scan:', err)
+        console.error('Error details:', {
+          status: err.response?.status,
+          code: err.code,
+          message: err.message,
+          response: err.response?.data
+        })
+        
+        // Handle rate limiting - only slow down after multiple 429s
+        if (err.response?.status === 429) {
+          consecutiveErrors++
+          if (consecutiveErrors >= 3) {
+            console.warn(`Rate limited ${consecutiveErrors} times, continuing to poll`)
+          }
+          // Don't show error for rate limiting, just continue polling
+          return
+        }
+        
+        // Only remove from localStorage if it's actually a 404
+        if (err.response?.status === 404) {
+          removeScan(scanId as string)
+          setError('Scan not found. It may have been deleted or never existed.')
+        } else if (err.code === 'ERR_NETWORK' || !err.response) {
+          // Network error - don't remove from storage, might be temporary
+          setError('Network error. Please check your connection and try again.')
+        } else {
+          setError(err.response?.data?.detail || 'Failed to fetch scan')
+        }
         setLoading(false)
       }
     }
 
-    // Poll if scan is not completed
-    const interval = setInterval(async () => {
-      if (!report || report.scan.status === 'queued' || report.scan.status === 'running') {
-        await fetchReport()
-      }
-    }, 2000)
-
+    // Initial fetch
     fetchReport()
 
-    return () => clearInterval(interval)
-  }, [scanId, report])
+    // Start polling - it will auto-stop when scan completes
+    intervalId = setInterval(() => {
+      fetchReport()
+    }, 250)
+
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [scanId])
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading scan results...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto"></div>
+          <p className="mt-6 text-xl text-blue-200 font-medium">Loading scan...</p>
+          <p className="mt-2 text-sm text-gray-400">This should only take a moment</p>
         </div>
       </div>
     )
   }
 
   if (error || !report) {
+    const isNetworkError = error?.includes('Network error') || error?.includes('connection')
+    
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error || 'Scan not found'}</p>
-          <button
-            onClick={() => router.push('/')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Back to Home
-          </button>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 p-8 text-center">
+          <div className="text-6xl mb-4">{isNetworkError ? '🔌' : '❌'}</div>
+          <h2 className="text-2xl font-bold text-white mb-4">
+            {isNetworkError ? 'Connection Error' : 'Scan Not Found'}
+          </h2>
+          <p className="text-gray-300 mb-6">{error || 'This scan does not exist or has been deleted.'}</p>
+          <div className="flex gap-3 justify-center flex-wrap">
+            {isNetworkError && (
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-700 hover:to-emerald-700 transition-all duration-200"
+              >
+                Retry
+              </button>
+            )}
+            <button
+              onClick={() => router.push('/')}
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200"
+            >
+              Start New Scan
+            </button>
+            <button
+              onClick={() => router.push('/scans')}
+              className="px-6 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all duration-200"
+            >
+              View History
+            </button>
+          </div>
         </div>
       </div>
     )

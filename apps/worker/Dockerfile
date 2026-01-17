@@ -37,5 +37,5 @@ RUN playwright install chromium
 # Copy application code
 COPY . .
 
-# Run celery worker
-CMD ["celery", "-A", "worker", "worker", "--loglevel=info", "--concurrency=2"]
+# Run celery worker with higher concurrency for faster parallel processing
+CMD ["celery", "-A", "worker", "worker", "--loglevel=info", "--concurrency=4"]

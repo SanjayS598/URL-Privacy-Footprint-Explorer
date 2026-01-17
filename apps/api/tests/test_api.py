@@ -32,6 +32,29 @@ def test_create_scan_invalid_url(client: TestClient):
     assert response.status_code == 422  # FastAPI validation error
 
 
+def test_create_scan_ssrf_protection(client: TestClient):
+    """Test SSRF protection in URL validation."""
+    # Test various blocked patterns
+    blocked_urls = [
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://0.0.0.0",
+        "http://169.254.169.254",  # AWS metadata
+        "http://10.0.0.1",  # Private range
+        "http://172.16.0.1",  # Private range
+        "http://192.168.1.1",  # Private range
+    ]
+    
+    for url in blocked_urls:
+        response = client.post(
+            "/api/scans",
+            json={"url": url}
+        )
+        assert response.status_code == 422, f"Expected 422 for {url}"
+        data = response.json()
+        assert "detail" in data
+
+
 def test_get_scan_not_found(client: TestClient):
     """Test getting a non-existent scan."""
     response = client.get("/api/scans/00000000-0000-0000-0000-000000000000")
