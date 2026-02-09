@@ -20,11 +20,5 @@ celery_app.conf.update(
 
 @celery_app.task(name="run_scan")
 def run_scan(scan_id: str, strict_config: dict):
-    # Execute a privacy scan for a given scan_id.
-    # This task is queued by the API and executed by the worker.
-    # The actual implementation is in the worker service.
-    # Args:
-    #   scan_id: UUID of the scan to execute
-    #   strict_config: Configuration for strict mode blocking
     # This is just a stub - the real implementation is in apps/worker
     pass

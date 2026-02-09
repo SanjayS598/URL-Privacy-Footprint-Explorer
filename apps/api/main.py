@@ -49,16 +49,12 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    # Health check endpoint.
     return {"status": "healthy", "service": "privacy-api"}
 
 
 @app.post("/api/scans", response_model=ScanCreateResponse)
 @limiter.limit("30/minute")
 async def create_scans(request: Request, scan_request: ScanCreateRequest, db: Session = Depends(get_db)):
-    # Create new privacy scan job(s).
-    # Validates the URL, computes base domain, creates scan records,
-    # and enqueues Celery tasks for each profile.
     # Rate limit: 30 requests per minute per IP (increased for better UX)
     # Extract base domain (eTLD+1)
     extracted = tldextract.extract(scan_request.url)
@@ -99,7 +95,6 @@ async def create_scans(request: Request, scan_request: ScanCreateRequest, db: Se
 @app.get("/api/scans/{scan_id}", response_model=ScanStatus)
 @limiter.limit("360/minute")
 async def get_scan_status(request: Request, scan_id: uuid.UUID, db: Session = Depends(get_db)):
-    # Get scan status and summary information.
     # Rate limit: 360 requests per minute per IP (very high for 500ms polling)
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     
@@ -112,9 +107,8 @@ async def get_scan_status(request: Request, scan_id: uuid.UUID, db: Session = De
 @app.get("/api/scans/{scan_id}/report", response_model=ScanReport)
 @limiter.limit("600/minute")
 async def get_scan_report(request: Request, scan_id: uuid.UUID, db: Session = Depends(get_db)):
-    # Get complete scan report including aggregates, cookies, and artifacts.
-    # Returns top 50 domains by bytes and top 50 cookies.
     # Rate limit: 600 requests per minute per IP (ultra-high for 250ms polling)
+    # Returns top 50 domains by bytes and top 50 cookies
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     
     if not scan:
@@ -172,8 +166,6 @@ async def get_scan_report(request: Request, scan_id: uuid.UUID, db: Session = De
 @app.get("/api/scans/{scan_id}/graph", response_model=GraphResponse)
 @limiter.limit("240/minute")
 async def get_scan_graph(request: Request, scan_id: uuid.UUID, db: Session = Depends(get_db)):
-    # Get graph visualization data for a scan.
-    # Returns nodes (domains) and edges (relationships) with metrics.
     # Rate limit: 240 requests per minute per IP (doubled for better UX)
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     
@@ -252,8 +244,6 @@ async def get_scan_graph(request: Request, scan_id: uuid.UUID, db: Session = Dep
 @app.post("/api/compare", response_model=CompareDelta)
 @limiter.limit("20/minute")
 async def compare_scans(request: Request, compare_request: CompareRequest, db: Session = Depends(get_db)):
-    # Compare two scans and return deltas.
-    # Typically used to compare baseline vs strict mode scans.
     # Rate limit: 20 requests per minute per IP
     scan_a = db.query(Scan).filter(Scan.id == compare_request.scan_a_id).first()
     scan_b = db.query(Scan).filter(Scan.id == compare_request.scan_b_id).first()
@@ -301,8 +291,6 @@ async def compare_scans(request: Request, compare_request: CompareRequest, db: S
 @app.get("/api/scans", response_model=List[ScanListItem])
 @limiter.limit("30/minute")
 async def list_scans(request: Request, limit: int = 20, db: Session = Depends(get_db)):
-    # List recent scans for history view.
-    # Returns scans ordered by creation time (newest first).
     # Rate limit: 30 requests per minute per IP
     scans = (
         db.query(Scan)

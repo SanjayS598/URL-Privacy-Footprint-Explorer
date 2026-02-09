@@ -79,9 +79,6 @@ FINGERPRINTING_PATTERNS = {
 
 
 def detect_fingerprinting(script_content: str, script_url: str) -> list:
-    # Analyze JavaScript code for fingerprinting patterns.
-    # Returns list of detected fingerprinting techniques.
-    
     detections = []
     
     for technique, config in FINGERPRINTING_PATTERNS.items():

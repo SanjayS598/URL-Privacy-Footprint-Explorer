@@ -55,7 +55,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def calculate_privacy_score(third_party_count, cookies_count, localstorage_keys, indexeddb_present, tracker_domains, fingerprinting_count):
-    # Privacy score: 0-100 (100 = excellent privacy, 0 = poor privacy)
     # Start with perfect score and deduct points
     score = 100
     
@@ -88,7 +87,6 @@ def calculate_privacy_score(third_party_count, cookies_count, localstorage_keys,
 
 @celery_app.task(name="run_scan")
 def run_scan(scan_id: str, strict_config: dict):
-    # Step 3 implementation: Added network request interception
     # Collects all requests, tracks third-party domains, aggregates by domain
     # strict_config will be used in later steps for blocking third-party requests
     

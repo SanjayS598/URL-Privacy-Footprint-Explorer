@@ -11,7 +11,6 @@ from database import Base
 
 
 class Scan(Base):
-    # Main scan record tracking a privacy analysis of a URL.
     __tablename__ = "scans"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -48,7 +47,6 @@ class Scan(Base):
 
 
 class DomainAggregate(Base):
-    # Aggregated statistics per domain contacted during a scan.
     __tablename__ = "domain_aggregates"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -64,7 +62,6 @@ class DomainAggregate(Base):
 
 
 class Cookie(Base):
-    # Individual cookies set during a scan.
     __tablename__ = "cookies"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -81,7 +78,6 @@ class Cookie(Base):
 
 
 class StorageSummary(Base):
-    # Browser storage usage summary for a scan.
     __tablename__ = "storage_summary"
     
     scan_id = Column(UUID(as_uuid=True), ForeignKey("scans.id"), primary_key=True)
@@ -94,7 +90,6 @@ class StorageSummary(Base):
 
 
 class Artifact(Base):
-    # References to raw artifacts stored in S3/MinIO.
     __tablename__ = "artifacts"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -108,7 +103,6 @@ class Artifact(Base):
 
 
 class FingerprintingDetection(Base):
-    # Records instances of browser fingerprinting techniques detected.
     __tablename__ = "fingerprinting_detections"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

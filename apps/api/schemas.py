@@ -6,13 +6,11 @@ from pydantic import BaseModel, HttpUrl, field_validator
 
 
 class StrictConfig(BaseModel):
-    # Configuration for strict mode scanning.
     block_third_party: bool = False
     allowlist_domains: List[str] = []
 
 
 class ScanCreateRequest(BaseModel):
-    # Request to create new scan(s).
     url: str
     profiles: List[str] = ["baseline", "strict"]
     strict_config: StrictConfig = StrictConfig()
@@ -20,7 +18,6 @@ class ScanCreateRequest(BaseModel):
     @field_validator('url')
     @classmethod
     def validate_url(cls, v: str) -> str:
-        # Validate URL is http/https and not localhost/private.
         if not v.startswith(('http://', 'https://')):
             raise ValueError('URL must start with http:// or https://')
         
@@ -36,7 +33,6 @@ class ScanCreateRequest(BaseModel):
     @field_validator('profiles')
     @classmethod
     def validate_profiles(cls, v: List[str]) -> List[str]:
-        # Validate profiles are valid.
         valid_profiles = {'baseline', 'strict'}
         for profile in v:
             if profile not in valid_profiles:
@@ -45,12 +41,10 @@ class ScanCreateRequest(BaseModel):
 
 
 class ScanCreateResponse(BaseModel):
-    # Response from creating scans.
     scan_ids: List[UUID]
 
 
 class ScanStatus(BaseModel):
-    # Scan status and summary information.
     id: UUID
     url: str
     final_url: Optional[str]
@@ -80,7 +74,6 @@ class ScanStatus(BaseModel):
 
 
 class DomainAggregateResponse(BaseModel):
-    # Domain aggregate statistics.
     domain: str
     is_third_party: bool
     request_count: int
@@ -92,7 +85,6 @@ class DomainAggregateResponse(BaseModel):
 
 
 class CookieResponse(BaseModel):
-    # Cookie information.
     name: str
     domain: str
     path: str
@@ -105,7 +97,6 @@ class CookieResponse(BaseModel):
 
 
 class StorageSummaryResponse(BaseModel):
-    # Storage usage summary.
     localstorage_keys_count: int
     indexeddb_present: bool
     serviceworker_present: bool
@@ -115,7 +106,6 @@ class StorageSummaryResponse(BaseModel):
 
 
 class ArtifactResponse(BaseModel):
-    # Artifact reference.
     kind: str
     uri: str
     created_at: datetime
@@ -124,7 +114,6 @@ class ArtifactResponse(BaseModel):
         from_attributes = True
 
 class FingerprintingDetectionResponse(BaseModel):
-    # Fingerprinting detection instance.
     id: UUID
     technique: str
     domain: str
@@ -137,7 +126,6 @@ class FingerprintingDetectionResponse(BaseModel):
         from_attributes = True
 
 class ScanReport(BaseModel):
-    # Complete scan report.
     scan: ScanStatus
     domain_aggregates: List[DomainAggregateResponse]
     cookies: List[CookieResponse]
@@ -147,7 +135,6 @@ class ScanReport(BaseModel):
 
 
 class GraphNode(BaseModel):
-    # Node in the privacy graph.
     id: str
     domain: str
     is_third_party: bool
@@ -158,25 +145,21 @@ class GraphNode(BaseModel):
 
 
 class GraphEdge(BaseModel):
-    # Edge in the privacy graph.
     source: str
     target: str
 
 
 class GraphResponse(BaseModel):
-    # Graph visualization data.
     nodes: List[GraphNode]
     edges: List[GraphEdge]
 
 
 class CompareRequest(BaseModel):
-    # Request to compare two scans.
     scan_a_id: UUID
     scan_b_id: UUID
 
 
 class CompareDelta(BaseModel):
-    # Deltas between two scans.
     third_party_domains_delta: int
     cookies_delta: int
     bytes_delta: int
@@ -190,7 +173,6 @@ class CompareDelta(BaseModel):
 
 
 class ScanListItem(BaseModel):
-    # Scan list item for history.
     id: UUID
     url: str
     base_domain: str
